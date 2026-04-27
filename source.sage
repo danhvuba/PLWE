@@ -8,34 +8,6 @@ from sage.stats.distributions.discrete_gaussian_lattice import DiscreteGaussianD
 RP = RealField(300) # sets the precision
 from sage.doctest.util import Timer
 
-
-# Global choices: setup dummy values
-q = 1
-n = 1
-sig = 1/sqrt(2*pi)
-Zq = IntegerModRing(q)
-R.<x> = PolynomialRing(Zq)
-f = y + 1
-N.<a> = NumberField(f)
-S.<z> = R.quotient(f) 
-cm, key = matrix(RP, 1, 1, [0]), []
-cmi = cm
-
-secret = 0
-samps = []
-lift_s = 0
-
-
-# Produce a random vector from (Z/qZ)^n
-def random_vec(q, dim):
-    return vector([ZZ.random_element(0, q) for i in range(dim)])
-
-# Useful function for real numbers modulo q
-def modq(r, q):
-    t = r/q - floor(r/q)
-    return t*q
-
-
 # Give the Minkowski lattice for a given ring determined by a polynomial.
 def cmatrix(): 
     global N, a
@@ -69,6 +41,71 @@ def cmatrix():
             i = i + 2
     return M, key
 
+# Produce a random vector from (Z/qZ)^n
+def random_vec(q, dim):
+    return vector([ZZ.random_element(0, q) for i in range(dim)])
+
+# Useful function for real numbers modulo q
+def modq(r, q):
+    t = r/q - floor(r/q)
+    return t*q
+
+# Call sampler
+def call_sampler():
+    e = sampler().change_ring(RP)
+    return e
+
+# Create samples using a lattice
+def get_sample(latmat, latmatinv, sec, qval, keyval):
+    e = call_sampler() 
+    dim = latmat.dimensions()[0]
+    pre_a = random_vec(qval, dim)
+    a_vec = latmat * pre_a 
+    b_vec = vecmul_poly(a_vec, sec, latmat, latmatinv) + e
+    pre_b = latmatinv * b_vec
+    pre_b_red = vector([modq(c, qval) for c in pre_b])
+    b_vec = latmat * pre_b_red
+    return [a_vec, b_vec]
+
+# Global choices: setup dummy values
+q = 1
+n = 1
+sig = 1/sqrt(2*pi)
+Zq = IntegerModRing(q)
+R.<x> = PolynomialRing(Zq)
+f = y + 1
+N.<a> = NumberField(f)
+S.<z> = R.quotient(f) 
+cm, key = matrix(RP, 1, 1, [0]), []
+cmi = cm
+
+# Set the parameters for the attack
+def setup_params(fval, qval, sval):
+    global q, n, sig, f, S, x, z, Zq
+    f = fval
+    n = f.degree()
+    q = qval
+    Zq = IntegerModRing(q)
+    R.<x> = PolynomialRing(Zq)
+    sig = sval/sqrt(2*pi)
+    S.<z> = R.quotient(f)
+    print(f"Setting up parameters, poly = {f}, prime = {q}, sigma = {sig}")
+    print("Verifying properties: ")
+    print("Prime?", q.is_prime())
+    print("Irreducible? ", f.is_irreducible())
+    print("Value at 1 modulo q?", Mod(f.subs(y=1), q))
+    return True
+
+# Compute the lattices in Minkowski space
+def prepare_matrices():
+    global cm, key, cmi, cmqq
+    print("Preparing matrices.")
+    cm, key = cmatrix()
+    cmi = cm.inverse()
+    cm53 = cm.change_ring(RealField(10))
+    cmqq = cm53.change_ring(QQ)
+    print("All matrices prepared.")
+    return True
 
 # Make a vector in R^n into a polynomial
 def make_poly(a_vec, matchange, var):
@@ -94,63 +131,12 @@ def vecmul_poly(u, v, mat, matinv):
     poly_prod = poly_u * poly_v
     return make_vec(poly_prod, mat)
 
-
-# Call sampler
-def call_sampler():
-    e = sampler().change_ring(RP)
-    return e
-
-
-# Create samples using a lattice
-def get_sample(latmat, latmatinv, sec, qval, keyval):
-    e = call_sampler() 
-    dim = latmat.dimensions()[0]
-    pre_a = random_vec(qval, dim)
-    a_vec = latmat * pre_a 
-    b_vec = vecmul_poly(a_vec, sec, latmat, latmatinv) + e
-    pre_b = latmatinv * b_vec
-    pre_b_red = vector([modq(c, qval) for c in pre_b])
-    b_vec = latmat * pre_b_red
-    return [a_vec, b_vec]
-
-
-# Set the parameters for the attack
-def setup_params(fval, qval, sval):
-    global q, n, sig, f, S, x, z, Zq
-    f = fval
-    n = f.degree()
-    q = qval
-    Zq = IntegerModRing(q)
-    R.<x> = PolynomialRing(Zq)
-    sig = sval/sqrt(2*pi)
-    S.<z> = R.quotient(f)
-    print(f"Setting up parameters, poly = {f}, prime = {q}, sigma = {sig}")
-    print("Verifying properties: ")
-    print("Prime?", q.is_prime())
-    print("Irreducible? ", f.is_irreducible())
-    print("Value at 1 modulo q?", Mod(f.subs(y=1), q))
-    return True
-
-
-# Compute the lattices in Minkowski space
-def prepare_matrices():
-    global cm, key, cmi, cmqq
-    print("Preparing matrices.")
-    cm, key = cmatrix()
-    cmi = cm.inverse()
-    cm53 = cm.change_ring(RealField(10))
-    cmqq = cm53.change_ring(QQ)
-    print("All matrices prepared.")
-    return True
-
-
 def initiate_sampler():
     global sampler
     print("Initiating Sampler.")
     sampler = DiscreteGaussianDistributionLatticeSampler(cmqq.transpose(), sig)
     print(f"Sampler initiated with sigma {RDF(sig)}")
     return True
-
 
 def error_test(num):
     print(f"Testing error production for {num} samples.")
@@ -160,13 +146,13 @@ def error_test(num):
     print(f"Avg error norm: {RDF(meannorm/(sqrt(n)*sampler.sigma*sqrt(2*pi)))} * sqrt(n)*s")
     return True
 
-
+secret = 0
 def create_secret():
     global secret
     secret = cm * random_vec(q, n)
     return True
 
-
+samps = []
 def create_samples(numsampsval):
     global samps
     samps = []
@@ -177,12 +163,10 @@ def create_samples(numsampsval):
     print(f"Done creating {len(samps)} samples.")
     return True
 
-
 def go_to_q(a_vec, matchange):
     pol = make_poly(a_vec, matchange, x)
     pol_eval = pol.subs(x=1)
     return Zq(pol_eval)
-
 
 def sanity_check():
     print("Initiating sanity check...")
@@ -200,7 +184,6 @@ def sanity_check():
         print("!!! SANITY ERROR !!!")
     return True
 
-
 def histoq(data):
     hist = [0 for i in range(10)]
     zeroct = 0
@@ -211,17 +194,15 @@ def histoq(data):
         hist[histbit] += 1
     return [hist, zeroct]
 
-
 def histo(data, cmi_mat):
     return histoq([go_to_q(datum, cmi_mat) for datum in data])
 
-
+lift_s = 0
 def secret_mod_q():
     global lift_s
     lift_s = go_to_q(secret, cmi)
     print(f"Secret mod q: {lift_s}")
     return True
-
 
 def alg2(reportrate, quickflag=False):
     print("Beginning algorithm 2.")
@@ -263,7 +244,6 @@ def alg2(reportrate, quickflag=False):
         print("Success! Secret found.")
         return True
     return False
-
 
 def shebang(fval, qval, sval, numsampsval, numtrials, quickflag=False):
     global sig
