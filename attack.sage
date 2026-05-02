@@ -15,6 +15,7 @@ RP = RealField(300)
 
 from sage.doctest.util import Timer
 
+
 # Global choices: setup dummy values
 # --- Các biến toàn cục (Global State) ---
 # Các biến này sẽ được cập nhật thông qua hàm setup_params()
@@ -79,7 +80,7 @@ def setup_params(fval, qval, sval):
 def cmatrix(): # returns a matrix, columns basis 1, x, x^2, x^3, ... given in the canonical embedding
     global N, a
     # 1. Khởi tạo Trường  N sinh bởi nghiệm 'a' của f(y) = 0
-    # N[a] = Q[a] / (f(a))
+    # N = Q[x] / (f(x)); f(a) = 0 trong N
     N.<a> = NumberField(f)
     fdeg = f.degree()
     
@@ -134,7 +135,7 @@ def cmatrix(): # returns a matrix, columns basis 1, x, x^2, x^3, ... given in th
 
 # Make a vector in R^n into a polynomial
 # Chuyển đổi một Vector trong không gian Minkowski (R^n) về dạng Đa thức
-# a_vec: Vector tọa độ thực
+# a_vec: Vector trong R^n
 # matchange: Ma trận nghịch đảo cmi (cm^-1)
 # var: Biến của đa thức (x hoặc z)
 def make_poly(a, matchange, var):
@@ -147,7 +148,6 @@ def make_poly(a, matchange, var):
         # pol = c_0*var^0 + c_1*var^1 + ... + c_n*var^n
         pol = pol + ZZ(round(coeffs[i])) * var^i 
         # var controls where it will live (what poly ring)
-        # biến var kiểm soát xem đa thức nằm trong poly ring nào
         
     return pol
 
@@ -295,30 +295,31 @@ def create_samples(numsampsval):
     print(f"Done creating {len(samps)} samples.")
     return True
 
-
+# Produce error vectors, just a test to see how they look
 def error_test(num):
-    # In thông báo đang kiểm tra quá trình tạo nhiễu với 'num' mẫu thử
-    print(f"Testing error production for {num} samples.")
+    print(f"Testing the error vector production by producing {num} errors.")
     
-    # 1. Tạo danh sách độ dài của các vector nhiễu:
+    # Tạo danh sách độ dài của các vector nhiễu:
     # sampler(): Lấy một mẫu nhiễu e (dạng vector) từ bộ lấy mẫu Gaussian rời rạc
     # .norm(): Tính chuẩn (độ dài) của vector nhiễu đó
     # .n(): Chuyển giá trị độ dài sang dạng số thực (numerical)
     errorlist = [sampler().norm().n() for _ in range(num)]
+    meannorm = mean(errorlist)  # average norm
+    maxnorm = max(errorlist)    # maximum norm
     
-    # 2. Tính toán các giá trị thống kê cơ bản từ danh sách nhiễu
-    meannorm = mean(errorlist) # Giá trị trung bình của độ dài các vector nhiễu
-    maxnorm = max(errorlist)   # Độ dài lớn nhất ghi nhận được (nhiễu cực đại)
+    # Tính toán tỷ lệ
+    avg_ratio = RDF(meannorm / (sqrt(n) * sampler.sigma() * sqrt(2 * pi)))
+    max_ratio = RDF(maxnorm / (sqrt(n) * sampler.sigma() * sqrt(2 * pi)))
     
-    # 3. In ra kết quả kiểm tra tỉ lệ:
-    # RDF(...): Ép kiểu sang Real Double Field để hiển thị số thực ngắn gọn
-    print(f"Avg error norm: {RDF(meannorm/(sqrt(n)*sampler.sigma()*sqrt(2*pi)))} times sqrt(n)*s")
+    print(f"The average error norm is {avg_ratio} times sqrt(n)*s.")
+    print(f"The maximum error norm is {max_ratio} times sqrt(n)*s.")
     
-    # if maxratio > 1:
-    #     print ("~~~~~~~~~~~~~~~~~~~~~~~ ERROR ~~~~~~~~~~~~~~~~~~~~~~~~~")
-    #     print ("The errors do not satisfy a proven upper bound in norm.")
-
-    return True
+    if max_ratio > 1:
+        print("~~~~~~~~~~~~~~~~~~~~~~~ ERROR ~~~~~~~~~~~~~~~~~~~~~~~~~")
+        print("The errors do not satisfy a proven upper bound in norm.")
+        return True
+    
+    return False
 
 # Function for going down to q
 # Chuyển đổi đối tượng từ không gian Minkowski về đa thức
@@ -327,6 +328,15 @@ def go_to_q(a_vec, matchange):
     pol = make_poly(a_vec, matchange, x)
     pol_eval = pol.subs(x=1)
     return Zq(pol_eval)
+
+# Create the secret mod q
+# chuyển secret về đa thức, thay giá trị x = 1, mod q
+def secret_mod_q():
+    global lift_s
+    lift_s = go_to_q(secret, cmi)
+    print("Storing the secret mod q.")
+    print("The secret is ", secret, " which becomes ", lift_s)
+    return True
 
 # Check to make sure moving to q preserves product -- the last two lines should be equal
 # Kiểm tra tính đúng đắn của phép đồng cấu (Sanity Check)
@@ -415,19 +425,14 @@ def histogram_of_errors_2():
     
     return True
 
-# Create the secret mod q
-# chuyển secret về đa thức, thay giá trị x = 1, mod q
-def secret_mod_q():
-    global lift_s
-    lift_s = go_to_q(secret, cmi)
-    print("Storing the secret mod q.")
-    print("The secret is ", secret, " which becomes ", lift_s)
-    return True
+
 
 # Algorithm 2: Đoán giá trị g (secret trong Zq := s(1) mod q)
 # reportrate controls how often it updates the status of the loop; larger = less frequently
 # quickflag = True will run only the secret and a few other values to give a quick idea if it works
 def alg2(reportrate, quickflag = False):
+    print("")
+    print("")
     print("Beginning algorithm 2.")
     numsamps = len(samps)
     a = [ 0 for i in range(numsamps)]
@@ -470,7 +475,7 @@ def alg2(reportrate, quickflag = False):
             if Mod(g,reportrate) == Mod(0,reportrate):
                 print(f"Currently checking residue {g}")
             
-            g = Zq(g) # Chuyển số nguyên g sang vành Zq
+            g = Zq(g) # ép kiểu g sang Zq
             potential = True # Gán cờ giả định g là ứng viên tiềm năng
             ctr = 0 # Bộ đếm số lượng mẫu mà g vượt qua
             
@@ -533,13 +538,15 @@ def shebang(fval,qval,sval,numsampsval,numtrials,quickflag=False):
     timer2 = Timer()
     timer.start()
     
+    print("")
+    print("") 
     print("********** PHASE 1: SETTING UP SYSTEM ")
     # Thiết lập các thông số cơ bản và chuẩn bị ma trận Minkowski
     setup_params(fval,qval,sval)
     prepare_matrices()
     
     print("Computing the adjustment factor for s.")
-    # cembs: Số lượng các cặp nghiệm phức (embeddings)
+    # cembs: Số lượng các cặp embedding phức 
     cembs = (n - len(N.embeddings(RR)))/2
     # detscale: Hệ số điều chỉnh dựa trên định thức của vành (discriminant) để khớp với không gian Minkowski
     detscale = RP( ( 2^(-cembs)*sqrt(abs(f.discriminant())) )^(1/n) ) # adjust the sigma,s
@@ -566,6 +573,8 @@ def shebang(fval,qval,sval,numsampsval,numtrials,quickflag=False):
     
     # Bắt đầu vòng lặp thử nghiệm (trials)
     for trialnum in range(numtrials):
+        print("")
+        print("")
         print("*~*~*~*~*~*~*~*~*~*~*~*~* TRIAL NUMBER ", trialnum, "*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~")
         
         print("********** PHASE 2: CREATE SECRET AND SAMPLES")
@@ -573,11 +582,13 @@ def shebang(fval,qval,sval,numsampsval,numtrials,quickflag=False):
         create_secret()
         create_samples(numsampsval)
         
-        # Kiểm tra tính đồng cấu của hệ thống trước khi tấn công
+        # Kiểm tra 
         sanity_check()
         print("Time for Phase 2: ", timer.stop())
         
         timer.start()
+        print("")
+        print("")
         print("********** PHASE 3: HISTOGRAMS")
         # Vẽ biểu đồ phân phối lỗi và các giá trị 'a' để quan sát đặc điểm dữ liệu
         histogram_of_errors()
@@ -589,8 +600,13 @@ def shebang(fval,qval,sval,numsampsval,numtrials,quickflag=False):
         histogram_of_errors_2()
         print("The histogram of sample errors (above) should be clustered at edges for success.")
         print("Time for Phase 3: ", timer.stop())
+
+        input(f"Lần thử {trialnum}. Nhấn Enter để tiếp tục...")
         
         timer.start()
+        
+        print("")
+        print("")
         print("********** PHASE 4: ATTACK ALGORITHM")
         # Tìm giá trị thực của bí mật mod q (để đối chiếu) và chạy thuật toán tấn công
         secret_mod_q()
@@ -607,27 +623,31 @@ def shebang(fval,qval,sval,numsampsval,numtrials,quickflag=False):
         
     # Kết thúc tất cả các lượt thử, dừng đồng hồ tổng
     totaltime = timer2.stop()
+    print("")
+    print("")
     print("Total time for ", trialnum+1, "trials was ", totaltime)
     
     return count_successes
 
 
-# # # gọi hàm ví dụ
-# # đa thức cyclotomic bậc 4; # f(1) mod q = 0
-# f = y^4 + y^3 + y^2 + y + 1    
-# q = 5 
-# # sigma => nhiễu siêu nhỏ  q << sigma * sqrt(n)                  
-# s = 0.1                        
-
-# shebang(f, q, s, numsampsval=50, numtrials=5, quickflag=False)
-
-
-# Thử với p lớn 
-p_prime = 11
-f = sum(y^i for i in range(p_prime))
-q = p_prime 
-# f(1) mod q = 0
-# q << sigma * sqrt(n) => thành công
-s = 0.1
+# # gọi hàm ví dụ
+# đa thức cyclotomic bậc 4; # f(1) mod q = 0
+f = y^4 + y^3 + y^2 + y + 1    
+q = 5 
+# chọn s sao cho:  q << sigma * sqrt(n) 
+# sigma = s/sqrt(2*pi)                 
+s = 0.1                       
 
 shebang(f, q, s, numsampsval=50, numtrials=5, quickflag=False)
+
+
+# # Thử với p lớn 
+# p_prime = 11
+# f = sum(y^i for i in range(p_prime))
+# q = p_prime 
+# # f(1) mod q = 0
+# chọn s sao cho:  q << sigma * sqrt(n) 
+# sigma = s/sqrt(2*pi)   
+# s = 0.1
+
+# shebang(f, q, s, numsampsval=50, numtrials=5, quickflag=False)
