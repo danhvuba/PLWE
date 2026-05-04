@@ -73,9 +73,20 @@ def setup_params(fval, qval, sval):
     S = R.quotient(f, names=('z',)); (z,) = S._first_ngens(1)
     print(f"Setting up parameters, poly = {f}, prime = {q}, sigma = {sig}")
     print("Verifying properties: ")
-    print("q - prime?", q.is_prime())
-    print("f - irreducible? ", f.is_irreducible())
-    print("Value at 1 of f modulo q?", Mod(f.subs(y=_sage_const_1 ), q))
+    
+    print("Verifying properties:")
+
+    if not q.is_prime():
+        raise ValueError("q is not prime")
+    print("q - prime? True")
+
+    if not f.is_irreducible():
+        raise ValueError("f is not irreducible")
+    print("f - irreducible? True")
+
+    if Mod(f.subs(y=_sage_const_1 ), q) != _sage_const_0 :
+        raise ValueError(f"f(1) mod q = {val}, expected 0")
+    print("f(1) ≡ 0 mod q? True")
     return True
 
 
@@ -370,12 +381,12 @@ def sanity_check():
     second_thing = go_to_q(vec1, mat) * go_to_q(vec2, mat)
     
     # 3. Đối chiếu kết quả
-    if first_thing == second_thing:
-        print("Sanity confirmed.")
-    else:
-        print ("~~~~~~~~~~~~~~~~~~~~~~~ ERROR ~~~~~~~~~~~~~~~~~~~~~~~~~")
-        print (f"Sanity problem: {first_thing} is not equal to {second_thing}")
-        print ("Are you sure your ring has root 1 mod q?")
+    if first_thing != second_thing:
+        raise ValueError(
+            f"Sanity problem: {first_thing} != {second_thing}. "
+            "Check that your ring has root 1 mod q."
+    )
+    print("Sanity confirmed.")
     return True
 
 # Given a list of elements of Z/qZ, make a histogram and zero count
@@ -430,7 +441,13 @@ def histogram_of_errors_2():
     
     return True
 
-
+def histogram_of_errors_guess():
+    print("Creating a histogram of supposed errors if sample is guessed, mod q.")
+    for g in range(q):
+        hist = histoq([ lift(Zq(go_to_q(sample[_sage_const_1 ],cmi) - go_to_q(sample[_sage_const_0 ],cmi)*Zq(g))) for sample in samps])
+        bar_chart(hist[_sage_const_0 ], width=_sage_const_1 ).save('errors_guess.png') 
+        input(f"Thử g = {g}. Nhấn Enter để tiếp tục...")
+    return True
 
 # Algorithm 2: Đoán giá trị g (secret trong Zq := s(1) mod q)
 # reportrate controls how often it updates the status of the loop; larger = less frequently
@@ -606,7 +623,8 @@ def shebang(fval,qval,sval,numsampsval,numtrials,quickflag=False):
         print("The histogram of sample errors (above) should be clustered at edges for success.")
         print("Time for Phase 3: ", timer.stop())
 
-        input(f"Lần thử {trialnum}. Nhấn Enter để tiếp tục...")
+        input(f"Lần thử thứ {trialnum}: s(1) mod q = {go_to_q(secret, cmi)} Nhấn Enter để tiếp tục...")
+        histogram_of_errors_guess()
         
         timer.start()
         
