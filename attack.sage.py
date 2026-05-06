@@ -30,18 +30,19 @@ Zq = IntegerModRing(q)          # Ring Z/qZ
 R = PolynomialRing(Zq, names=('x',)); (x,) = R._first_ngens(1)# Ring đa thức trên Zq: R[x] = Zq[x]
 f = y + _sage_const_1                        # Đa thức f
 n = _sage_const_1                            # Bậc của đa thức f
-N = NumberField(f, names=('a',)); (a,) = N._first_ngens(1)# Trường số được sinh bởi f; N[a] = Q[a] / (f(a))
+N = NumberField(f, names=('a',)); (a,) = N._first_ngens(1)# Trường số được sinh bởi nghiệm của f là a; N = Q(a)
 S = R.quotient(f, names=('z',)); (z,) = S._first_ngens(1)# Ring S[z] = R[z]/(f(z)) = Zq[z] / (f(z)) 
 # => This is P_q
 
 # y,x là các symbol bất kỳ
-# a,z là các symbol nghiệm của f trên N, S!!!!!!!
+# a,z là các symbol nghiệm của f trên N, S  ???
 
-# cm (Canonical Matrix): Chuyển đa thức về dạng Vector trong không gian Minkowski
+# cm (Canonical Matrix) - Ma trận M_alpha
+# Chuyển vector hệ số đa thức về dạng Vector trong không gian Minkowski (đẳng cấu RR^n)
 # Vector_V = cm * Vector_Coefficients
 # cmi: Ma trận nghịch đảo của cm
 # cm - ma trận trên RP, kích thước 1x1 = [0]
-# key - vector định dạng hàng là phần thực/ảo trong ma trận Minkowski
+# key - vector định dạng hàng là phần thực/ảo trong ma trận cm
 cm, key = matrix(RP, _sage_const_1 , _sage_const_1 , [_sage_const_0 ]), []                  
 cmi = None
 cm53 = cm.change_ring(RealField(_sage_const_10 )) # .change_ring - ép kiểu toàn bộ phần tử của cm về RealField(10)
@@ -95,8 +96,7 @@ def setup_params(fval, qval, sval):
 # Also gives a key to which are real embeddings.
 def cmatrix(): # returns a matrix, columns basis 1, x, x^2, x^3, ... given in the canonical embedding
     global N, a
-    # 1. Khởi tạo Trường  N sinh bởi nghiệm 'a' của f(y) = 0
-    # N = Q[x] / (f(x)); f(a) = 0 trong N
+    # 1. Khởi tạo Trường N sinh bởi nghiệm 'a' của f(y) = 0 trên CC
     N = NumberField(f, names=('a',)); (a,) = N._first_ngens(1)
     fdeg = f.degree()
     
@@ -104,7 +104,7 @@ def cmatrix(): # returns a matrix, columns basis 1, x, x^2, x^3, ... given in th
     # 0 = real, 1 = real part of complex emb, 2 = imaginary part
     key = [_sage_const_0  for i in range(fdeg)] 
     
-    # embs: Tập hợp n phép nhúng (embeddings) từ trường đa thức N vào số phức CC
+    # embs: Tập hợp n phép nhúng (embeddings) từ trường số N vào số phức CC
     # [alpha_0, ... , alpha_(n-1)] - tập hợp nghiệm của f trên N; 
     # embs = [embs_0, ....];   embs_i: g(x) --> g(alpha_i)
     # Mỗi phép nhúng tương ứng với việc thay một nghiệm phức của f vào đa thức
@@ -112,7 +112,7 @@ def cmatrix(): # returns a matrix, columns basis 1, x, x^2, x^3, ... given in th
     M = matrix(RP, fdeg, fdeg)
     
     print("Preparing an embedding matrix: computing powers of the root.")
-    # apows: Tính trước các lũy thừa [a^0, a^1, ..., a^(n-1)] => rút gọn bậc => để tăng tốc
+    # apows: Tính trước các lũy thừa [a^0, a^1, ..., a^(n-1)] => rút gọn bậc => để tăng tốc ??
     apows = [a**j for j in range(n)]
     print("Finished computing the powers of the root.")
     
@@ -133,42 +133,40 @@ def cmatrix(): # returns a matrix, columns basis 1, x, x^2, x^3, ... given in th
             i = i + _sage_const_1 
             
         # TRƯỜNG HỢP 2: Nghiệm alpha_i là số phức
-        # Một nghiệm phức luôn đi kèm nghiệm liên hợp. Ta tách thành 2 hàng thực:
+        # Ta tách thành 2 hàng:
         else:
-            key[i] = _sage_const_1       # Đánh dấu hàng phần thực: Real(sigma(a))
-            key[i+_sage_const_1 ] = _sage_const_2     # Đánh dấu hàng phần ảo: Imag(sigma(a))
+            key[i] = _sage_const_1       # Đánh dấu hàng phần thực: Real
+            key[i+_sage_const_1 ] = _sage_const_2     # Đánh dấu hàng phần ảo: Imag
             
             for j in range(n):
                 val = em(apows[j])
-                # Công thức nhúng Minkowski cho cặp nghiệm phức:
                 # M[i]   = Real(val)
-                # M[i+1] = Imag(val) (được tính bằng Real(val * I) để giữ độ chính xác)????
+                # M[i+1] = - Imag(val)
                 M[i, j] = val.real()
                 M[i+_sage_const_1 , j] = (val * I).real() 
             i = i + _sage_const_2 
             
     return M, key
 
-# Make a vector in R^n into a polynomial
-# Chuyển đổi một Vector trong không gian Minkowski (R^n) về dạng Đa thức
-# a_vec: Vector trong R^n
+# Make a vector in RR^n into a polynomial ???
+# Chuyển đổi một Vector trong θ(R) về đa thức
+# a_vec: Vector trong θ(R)
 # matchange: Ma trận nghịch đảo cmi (cm^-1)
 # var: Biến của đa thức (x hoặc z)
 def make_poly(a, matchange, var):
-    # Công thức: Vector_Hệ_Số = M^-1 * Vector_Minkowski
     coeffs = matchange * a #coefficients of the polynomial are given by the change of basis matrix
     pol = _sage_const_0 
     
     for i in range(n):
-        # Làm tròn số thực về số nguyên ZZ để ?????????????????
-        # pol = c_0*var^0 + c_1*var^1 + ... + c_n*var^n
+        # round làm tròn ????????
+        # ZZ ép kiểu số nguyên: 1.0 -> 1
         pol = pol + ZZ(round(coeffs[i])) * var**i 
         # var controls where it will live (what poly ring)
         
     return pol
 
 # Make a polynomial into a vector in Minkowski space
-# Chuyển đổi một đa thức thành vector trong không gian Minkowski (R^n)
+# Chuyển đổi một đa thức thành vector trong θ(R)
 # fval: Đa thức đầu vào
 # matchange: Ma trận nhúng Minkowski (cm)
 def make_vec(fval, matchange):
@@ -176,7 +174,7 @@ def make_vec(fval, matchange):
         coeffs = [_sage_const_0  for i in range(n)]
     else:
         coeffs = [_sage_const_0  for i in range(n)]
-        # lift(fval):                       ????????
+        # lift(fval):    trả về một đa thức cụ thể trong class (vì đang làm việc trong thương)
         # .coefficients(): Trả về danh sách các hệ số [c0, c1, c2, ...]
         colist = lift(fval).coefficients()
         
@@ -186,15 +184,15 @@ def make_vec(fval, matchange):
     return matchange * vector(coeffs)
 
 # Multiplication in Minkowski space via moving to polynomial ring
-# Thực hiện phép nhân hai phần tử trong không gian Minkowski thông qua nhân đa thức
-# u, v: Hai vector trong không gian Minkowski R^n
+# Thực hiện phép nhân hai phần tử trong θ(R) thông qua nhân đa thức
+# u, v: Hai vector trong θ(R)
 # mat: Ma trận nhúng M (cm)
 # matinv: Ma trận nghịch đảo M^-1 (cmi)
 def vecmul_poly(u, v, mat, matinv):
     poly_u = make_poly(u, matinv, z)
     poly_v = make_poly(v, matinv, z)
     
-    # Nhân đa thức trong vành (thực hiện modulo f tự động bởi Sage)
+    # Nhân đa thức trong vành đa thức
     poly_prod = poly_u * poly_v
     return make_vec(poly_prod, mat)
 
@@ -238,7 +236,7 @@ def modq(r, q):
     return t*q
 
 ########## lấy mẫu 
-# Create the sampler on the lattice embedded in R^n
+# Create the sampler on the lattice embedded ( θ(R) ) in RR^n
 def initiate_sampler():
     global sampler
     print("Initiating Sampler.")
@@ -261,23 +259,24 @@ def call_sampler():
     return e
 
 # Create samples using a lattice
-# Tạo các cặp mẫu (a, b) Ring-LWE trong không gian Minkowski
+# Tạo các cặp mẫu (a, b) Ring-LWE trong θ(R_q)
 # latmat: Ma trận nhúng M (cm), latmatinv: Ma trận nghịch đảo M^-1 (cmi)
-# sec: Vector bí mật 's' đã được nhúng vào không gian Minkowski
+# sec: Vector bí mật 's' trong θ(R)
 # qval: Giá trị Modulo q của hệ thống
 # keyval - vector định dạng hàng là phần thực/ảo trong ma trận Minkowski
 def get_sample(latmat, latmatinv, sec, qval, keyval):
-    # 1. Lấy mẫu nhiễu e trong R^n
+    # 1. Lấy mẫu nhiễu e trong θ(R)
     e = call_sampler() 
     
     # 2. Tạo đa thức ngẫu nhiên 'pre_a'
     dim = latmat.dimensions()[_sage_const_0 ]  # lấy số hàng của ma trận; cm[nxn]
     pre_a = random_vec(qval, dim) # create a uniformly randomly in terms of basis in cm  ???????
+    # tạo pre_a trên P_q
     
-    # 3. Chuyển 'pre_a' sang không gian Minkowski, R^n
+    # 3. Chuyển 'pre_a' sang θ(R_q)
     a = latmat * pre_a 
     
-    # 4. Tính b = a * s + e trong không gian Minkowski, R^n
+    # 4. Tính b = a * s + e trong θ(R)
     # Dùng vecmul_poly để nhân trong không gian Minkowski (thông qua nhân đa thức)
     b = vecmul_poly(a, sec, latmat, latmatinv) + e
     
@@ -287,18 +286,18 @@ def get_sample(latmat, latmatinv, sec, qval, keyval):
     # Thực hiện Modulo q đối với từng hệ số vector
     pre_b_red = vector([modq(c, qval) for c in pre_b])
     
-    # 6. Đưa b đã rút gọn quay lại không gian Minkowski, R^n
+    # 6. Đưa b đã rút gọn quay lại θ(R_q)
     b = latmat * pre_b_red
     
     return [a, b]
 
-# taọ secret trên R^n
+# taọ secret trên θ(R_q)
 def create_secret():
     global secret
     secret = cm * random_vec(q, n)
     return True
 
-# tạo danh sách chứa numsampsval mẫu (a, b) Ring-LWE trong không gian Minkowski
+# tạo danh sách chứa numsampsval mẫu (a, b) Ring-LWE trong θ(R_q)
 def create_samples(numsampsval):
     global samps, numsamps
     samps = []
@@ -357,14 +356,14 @@ def secret_mod_q():
 # Check to make sure moving to q preserves product -- the last two lines should be equal
 # Kiểm tra tính đúng đắn của phép đồng cấu (Sanity Check)
 # Xác nhận rằng tính chất nhân của vành được bảo toàn khi chuyển 
-# từ không gian Minkowski R^n về đa thức. Nếu bài kiểm tra này vượt qua, 
+# từ θ(R_q) về đa thức. Nếu bài kiểm tra này vượt qua, 
 # cuộc tấn công dựa trên phép đánh giá đa thức tại 1 mới có thể thực hiện được.
 def sanity_check():
     print("Initiating sanity check...")
     mat = cmi
     
-    # 1. Tạo hai vector trong không gian Minkowski R^n
-    # thông qua hai vector đa thức => chuyển về R^n
+    # 1. Tạo hai vector trong θ(R_q)
+    # thông qua hai vector đa thức trên P_q => chuyển về θ(R_q)
     pvec1 = random_vec(q, n)
     vec1 = cm * pvec1
     pvec2 = random_vec(q, n)
@@ -461,7 +460,7 @@ def alg2(reportrate, quickflag = False):
     b = [ _sage_const_0  for i in range(numsamps)]
     
     print("Moving samples to F_q.")
-    # 1. Chuyển đổi toàn bộ các phân phối từ không gian Minkowski về số nguyên trong Zq
+    # 1. Chuyển đổi toàn bộ các phân phối từ θ(R_q) về số nguyên trong Zq
     for i in range(numsamps):
         sample = samps[i]
         # đối với mỗi phân phối
