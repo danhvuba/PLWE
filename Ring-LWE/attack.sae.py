@@ -66,11 +66,9 @@ def setup_params(fval, qval, sval):
     Zq = IntegerModRing(q)
     R.<x> = PolynomialRing(Zq)
     sig = sval/sqrt(2*pi) # sigma - độ lệch chuẩn trong phân phối Gaussian
-    S.<z> = R.quotient(f)
+    S.<z> = R.quotient(f)  # Zq[z]/f(z)
     print(f"Setting up parameters, poly = {f}, prime = {q}, sigma = {sig}")
     print("Verifying properties: ")
-    
-    print("Verifying properties:")
 
     if not q.is_prime():
         raise ValueError("q is not prime")
@@ -81,8 +79,9 @@ def setup_params(fval, qval, sval):
     print("f - irreducible? True")
 
     if Mod(f.subs(y=1), q) != 0:
-        raise ValueError(f"f(1) mod q = {val}, expected 0")
+        raise ValueError(f"f(1) mod q = {Mod(f.subs(y=1), q)}, expected 0")
     print("f(1) ≡ 0 mod q? True")
+    print()
     return True
 
 
@@ -345,7 +344,8 @@ def secret_mod_q():
     global lift_s
     lift_s = go_to_q(secret, cmi)
     print("Storing the secret mod q.")
-    print("The secret is ", secret, " which becomes ", lift_s)
+    print("The secret is ", secret)
+    print("s(1) mod q = ", lift_s)
     return True
 
 # Check to make sure moving to q preserves product -- the last two lines should be equal
@@ -446,11 +446,11 @@ def histogram_of_errors_guess():
 # Algorithm 2: Đoán giá trị g (secret trong Zq := s(1) mod q)
 # reportrate controls how often it updates the status of the loop; larger = less frequently
 # quickflag = True will run only the secret and a few other values to give a quick idea if it works
-def alg2(reportrate, quickflag = False):
+def alg2(numsamps, reportrate, quickflag = False):
     print("")
     print("")
-    print("Beginning algorithm 2.")
-    numsamps = len(samps)
+    print(f"******************* Beginning ALGORITHM 2 with {numsamps} samples ********************")
+    #numsamps = len(samps)
     a = [ 0 for i in range(numsamps)]
     b = [ 0 for i in range(numsamps)]
     
@@ -466,6 +466,7 @@ def alg2(reportrate, quickflag = False):
     winner = [[],0] # Lưu kẻ thắng cuộc: [[danh_sách_g], số_mẫu_vượt_qua]
     
     print("Samples have been moved to F_q.")
+    print("")
     
     # Thuật toán chạy qua 2 vòng (Round)
     for i in range(2):
@@ -475,6 +476,7 @@ def alg2(reportrate, quickflag = False):
             iterat = [lift_s]
         if i == 1:
             # ROUND 2: Tấn công thực tế bằng cách thử các giá trị g khác nhau
+            print("")
             print("!!!!! ROUND 2: !!!!! Now, running the attack naively.")
             possibles = []
             if quickflag:
@@ -488,8 +490,10 @@ def alg2(reportrate, quickflag = False):
         # thử tìm các giá trị g        
         for g in iterat:
             # In trạng thái tiến độ dựa trên reportrate
-            if Mod(g,reportrate) == Mod(0,reportrate):
-                print(f"Currently checking residue {g}")
+            
+            # if Mod(g,reportrate) == Mod(0,reportrate) and g != 0:
+            #     print("")
+            #     print(f"Currently checking g = {g}")
             
             g = Zq(g) # ép kiểu g sang Zq
             potential = True # Gán cờ giả định g là ứng viên tiềm năng
@@ -516,17 +520,19 @@ def alg2(reportrate, quickflag = False):
                 ctr = ctr + 1 # chuyển đến mẫu tiếp theo
             
             # Nếu g vượt qua toàn bộ các mẫu mà không bị loại
-            if potential == True:
-                print(f"We found a potential secret: {g}")
+            if potential == True and i != 0:
+                #print(f"We found a potential secret: {g}, pass {numsamps} samples")
                 possibles.append(g)
             
             # Thông báo riêng nếu giá trị đang xét chính là bí mật thực sự
             if g == lift_s:
                 if i == 0:
-                    print(f"The real secret survived {ctr} samples.")
+                    print(f"The real secret {lift_s}")
+                    print(f"pass {ctr} samples.")
                 #break
-                   
-    print(f"Full list of survivors of the {numsamps} samples: list g_zq {possibles}")
+    
+    print("")               
+    print(f"Full list of survivors of the {numsamps} samples: list g {possibles}")
     print(f"The real secret mod q was: {lift_s}")
     
     # KIỂM TRA CUỐI CÙNG
@@ -561,6 +567,7 @@ def shebang(fval,qval,sval,numsampsval,numtrials,quickflag=False):
     setup_params(fval,qval,sval)
     prepare_matrices()
     
+    print("") 
     print("Computing the adjustment factor for s.")
     # cembs: Số lượng các cặp embedding phức 
     cembs = (n - len(N.embeddings(RR)))/2
@@ -572,6 +579,7 @@ def shebang(fval,qval,sval,numsampsval,numtrials,quickflag=False):
     sig = sig*detscale
     
     print("Adjusted s for use with this embedding, result is ", sval)
+    print("") 
     
     # Khởi tạo bộ lấy mẫu nhiễu Gaussian sau khi đã điều chỉnh sig
     initiate_sampler()
@@ -579,9 +587,9 @@ def shebang(fval,qval,sval,numsampsval,numtrials,quickflag=False):
     print("The sampler has been created with sigma = ", sampler.sigma())
     print("Sampled vectors will have expected norm ", RDF(sqrt(n)*sampler.sigma()))
     
-    # Chạy thử nghiệm nhiễu trên 5 mẫu
-    error_test(5)
-    print("Time for Phase 1: ", timer.stop())
+    # # Chạy thử nghiệm nhiễu trên 5 mẫu
+    # error_test(5)
+    # print("Time for Phase 1: ", timer.stop())
     
     timer.start()
     count_successes = 0
@@ -607,18 +615,18 @@ def shebang(fval,qval,sval,numsampsval,numtrials,quickflag=False):
         print("")
         print("********** PHASE 3: HISTOGRAMS")
         # Vẽ biểu đồ phân phối lỗi và các giá trị 'a' để quan sát đặc điểm dữ liệu
-        histogram_of_errors()
-        print("The histogram of errors (above) should be clustered at edges for success.")
+        # histogram_of_errors()
+        # print("The histogram of errors (above) should be clustered at edges for success.")
         
-        histogram_of_as()
-        print("The histogram of a’s (above) should be fairly uniform.")
+        # histogram_of_as()
+        # print("The histogram of a’s (above) should be fairly uniform.")
         
-        histogram_of_errors_2()
-        print("The histogram of sample errors (above) should be clustered at edges for success.")
-        print("Time for Phase 3: ", timer.stop())
+        # histogram_of_errors_2()
+        # print("The histogram of sample errors (above) should be clustered at edges for success.")
+        # print("Time for Phase 3: ", timer.stop())
 
-        input(f"Lần thử thứ {trialnum}: s(1) mod q = {go_to_q(secret, cmi)} Nhấn Enter để tiếp tục...")
-        histogram_of_errors_guess()
+        # input(f"Lần thử thứ {trialnum}: s(1) mod q = {go_to_q(secret, cmi)} Nhấn Enter để tiếp tục...")
+        # histogram_of_errors_guess()
         
         timer.start()
         
@@ -627,9 +635,11 @@ def shebang(fval,qval,sval,numsampsval,numtrials,quickflag=False):
         print("********** PHASE 4: ATTACK ALGORITHM")
         # Tìm giá trị thực của bí mật mod q (để đối chiếu) và chạy thuật toán tấn công
         secret_mod_q()
-        result = alg2(10000,quickflag)
         
-        print("Result of Algorithm 2:", result)
+        for i in range(1,30):
+            result = alg2(i,10000,quickflag)
+        
+        # print("Result of Algorithm 2:", result)
         print("Time for Phase 4: ", timer.stop())
         
         # Nếu tìm được đúng bí mật, tăng biến đếm thành công
@@ -647,15 +657,40 @@ def shebang(fval,qval,sval,numsampsval,numtrials,quickflag=False):
     return count_successes
 
 
-# # gọi hàm ví dụ
-# đa thức cyclotomic bậc 4; # f(1) mod q = 0
-f = y^4 + y^3 + y^2 + y + 1    
-q = 5 
-# chọn s sao cho:  q << sigma * sqrt(n) 
-# sigma = s/sqrt(2*pi)                 
-s = 0.1                       
+# # # gọi hàm ví dụ
+# # đa thức cyclotomic bậc 4; # f(1) mod q = 0
+# f = y^4 + y^3 + y^2 + y + 1    
+# q = 5 
+# # chọn s sao cho:  q << sigma * sqrt(n) 
+# # sigma = s/sqrt(2*pi)                 
+# s = 0.1                       
 
-shebang(f, q, s, numsampsval=50, numtrials=5, quickflag=False)
+
+# # 2.
+# # f(1) mod q = 0
+# f = y^128 + 524288*y + 5248285
+# q = 5248287 
+# # sigma = s/sqrt(2*pi)                 
+# s = 8.00    # := w   
+
+# 3.
+# # gọi hàm ví dụ
+# f(1) mod q = 0
+f = y^192 + 4092    
+q = 4093 
+# sigma = s/sqrt(2*pi)                 
+s = 8.87    # := w         
+
+# # 4.
+# # f(1) mod q = 0
+# f = y^256 + 8190
+# q = 8191 
+# # sigma = s/sqrt(2*pi)                 
+# s = 8.35    # := w    
+
+shebang(f, q, s, numsampsval=30, numtrials=1, quickflag=False)
+
+
 
 
 # # Thử với p lớn 
@@ -663,8 +698,24 @@ shebang(f, q, s, numsampsval=50, numtrials=5, quickflag=False)
 # f = sum(y^i for i in range(p_prime))
 # q = p_prime 
 # # f(1) mod q = 0
-# chọn s sao cho:  q << sigma * sqrt(n) 
+# #chọn s sao cho:  q << sigma * sqrt(n) 
 # sigma = s/sqrt(2*pi)   
 # s = 0.1
 
-# shebang(f, q, s, numsampsval=50, numtrials=5, quickflag=False)
+#shebang(f, q, s, numsampsval=50, numtrials=5, quickflag=False)
+
+
+# f = y^3 - 2
+# f = y^6 - 5*y^4 + 5*y^2 + 6   
+# f = y^8 - 10*y^6 + 20*y^4 + 5*y^2 + 2
+# f = y^12 - 2         # (2,5)
+# f = y^8 - 10*y^6 + 20*y^4 + 5*y^2 + 2     # (2,3)
+# N.<a> = NumberField(f)
+# n = f.degree()
+# embs = N.embeddings(CC)
+
+# print(N.signature())
+# for i in range (n):
+#     em = embs[i]
+#     print(f"{em(a).real()} + i * {-((em(a)*I).real())}")
+    
